@@ -25,8 +25,7 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # 1. EXPAND SECOND NESTED TARBALL (Explicitly target non-legacy active archives)
-    # This unpacks the hidden aurora-6.0.0 layer inside your primary download
+    # 1. EXPAND SECOND NESTED TARBALL
     nested_tarball = Dir.glob("**/*.tar.gz").reject { |f| f.include?("Old/") }.first
     if nested_tarball
       ohai "Extracting required production workspace archive: #{nested_tarball}"
@@ -77,7 +76,6 @@ class AuroraBiospace < Formula
           from rich.panel import Panel
           import requests
       except ImportError:
-          # Fixed runtime path mapping permissions barrier via local user context target rules
           subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--quiet", "rich", "requests"])
           from rich.console import Console
           from rich.panel import Panel
@@ -167,12 +165,12 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # 8. RESOLVE EXECUTABLE RUNTIME RIGHTS
-    # Explicit conversion sets operational flags properly before system handoff
+    # 8. PROCESS INTERPRETER AND STAGE TO BIN
     inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
-    
-    # Save straight to environment binaries directory, Homebrew handles bin permissions natively on install
     bin.install launcher_file
+
+    # FIXED: Force executable execution privileges onto the file AFTER it is saved into the bin location
+    chmod 0755, bin/"aurora-biospace"
   end
 
   test do
