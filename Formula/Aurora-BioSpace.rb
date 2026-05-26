@@ -5,11 +5,9 @@ class AuroraBiospace < Formula
   sha256 "50ec788be4f39e5fd2191ae529d80def168acbcd82257337897b7049c83fcf18"
   version "6.0.0"
 
-  # Core dependencies
   depends_on "node"
   depends_on "python@3.12"
 
-  # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
     depends_on "libx11"
     depends_on "libxkbfile"
@@ -25,43 +23,37 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # 1. EXPAND SECOND NESTED PRODUCTION TARBALL
+    # 1. Expand production archive
     nested_tarball = Dir.glob("**/*.tar.gz").reject { |f| f.include?("Old/") }.first
     if nested_tarball
-      ohai "Extracting required production workspace archive: #{nested_tarball}"
       system "tar", "-xzf", nested_tarball
     end
 
-    # 2. DETECT APP WORKSPACE DIRECTORIES
+    # 2. Find package workspace branch
     package_json = Dir.glob("**/genelab/package.json").first || Dir.glob("**/package.json").first
-    if package_json.nil?
-      odie "Error: Could not find package.json anywhere in the source workspace branches."
-    end
-
+    odie "Error: Could not find package.json anywhere in source." if package_json.nil?
     app_source_dir = File.dirname(package_json)
 
-    # 3. CLEAN UP RUNTIME DEPENDENCIES
+    # 3. Clean production workspace install
     cd app_source_dir do
-      ohai "Running npm install in workspace: #{Dir.pwd}"
       system "npm", "install", "--omit=dev"
     end
 
-    # 4. STAGING APPLICATION FILES TO LIBEXEC
+    # 4. Stage to libexec location
     cd app_source_dir do
       libexec.install Dir["*"]
     end
 
-    # 5. OS-SPECIFIC ATTRIBUTE CLEANING (macOS only)
     if OS.mac?
       system "xattr", "-rd", "com.apple.quarantine", "#{libexec}" rescue nil
     end
 
-    # 6. RESOLVE INTERPRETER PATHS
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. WRITE MAIN RUNTIME PYTHON SCRIPT DIRECTLY TO LIBEXEC
+    # 5. Write pure python script using standard string formatting 
+    # Single quotes on the heredoc block delimiter prevent Ruby from mangling variables
     launcher_script = libexec/"aurora-launcher.py"
-    launcher_script.write <<~EOS
+    launcher_script.write <<~'EOS'
       #!/usr/bin/env python3
       import os
       import subprocess
@@ -92,9 +84,9 @@ class AuroraBiospace < Formula
                   latest_version = latest_release.get("tag_name", "").strip()
                   if latest_version and latest_version != CURRENT_VERSION:
                       console.print(Panel(
-                          f"[bold yellow]⚠️  A new update is available![/bold yellow]\\n\\n"
-                          f"Current Version: [red]{CURRENT_VERSION}[/red]\\n"
-                          f"Latest Version:  [green]{latest_version}[/green]\\n\\n"
+                          f"[bold yellow]⚠️  A new update is available![/bold yellow]\n\n"
+                          f"Current Version: [red]{CURRENT_VERSION}[/red]\n"
+                          f"Latest Version:  [green]{latest_version}[ green]\n\n"
                           f"Download it here: [underline cyan]https://github.com/{GITHUB_REPO}/releases[/underline cyan]",
                           title="[bold yellow]Update Notice[/bold yellow]",
                           border_style="yellow"
@@ -109,12 +101,12 @@ class AuroraBiospace < Formula
    /   |  __  ___________  __________ _ 
   / /| | / / / / ___/ __ \\/ ___/ __ `/ 
  / ___ |/ /_/ / /  / /_/ / /  / /_/ /  
-/_/  |_|\\__,_/_/   \\____/_/   \\__,_/   
+/_/  |_|\__,_/_/   \____/_/   \__,_/   
           """
           console.print(aurora_art, style="bold cyan")
           console.print("    ✨ [bold italic violet]AI-powered[/bold italic violet] [bold italic sea_green2]Bioscience Dashboard[/bold italic sea_green2] ✨")
-          console.print("       [grey50]powered by NASA OSDR API - Only Google Auth accepted[/grey50]\\n")
-          console.print(f"       [bold dim white]Local Version: {CURRENT_VERSION}[/bold dim white]\\n")
+          console.print("       [grey50]powered by NASA OSDR API - Only Google Auth accepted[/grey50]\n")
+          console.print(f"       [bold dim white]Local Version: {CURRENT_VERSION}[/bold dim white]\n")
           console.print("[bold magenta]=[/bold magenta]" * 50)
           console.print()
 
@@ -135,18 +127,18 @@ class AuroraBiospace < Formula
               pass
 
           if current_os == "Darwin":
-              cmd = f'osascript -e "display dialog \\"{msg}\\" buttons {{\\"OK\\"}} default button 1"'
+              cmd = f'osascript -e "display dialog \"{msg}\" buttons {{\"OK\"}} default button 1"'
               os.system(cmd)
           else:
               console.print(Panel(f"[yellow]{msg}[/yellow]", title="[bold blue]System Notice[/bold blue]", border_style="blue"))
               console.print()
 
-          app_dir = "#{libexec}"
+          # Let Python resolve its own execution folder path directly via parent tracking
+          app_dir = os.path.dirname(os.path.abspath(__file__))
           
           env = os.environ.copy()
           if current_os == "Linux":
-              hb_lib = "#{HOMEBREW_PREFIX}/lib"
-              env["LD_LIBRARY_PATH"] = hb_lib + ":" + env.get("LD_LIBRARY_PATH", "")
+              env["LD_LIBRARY_PATH"] = os.path.dirname(app_dir) + "/lib:" + env.get("LD_LIBRARY_PATH", "")
               if is_wsl:
                   env["LIBGL_ALWAYS_SOFTWARE"] = "1"
                   env["ELECTRON_DISABLE_GPU"] = "1"
@@ -155,7 +147,7 @@ class AuroraBiospace < Formula
               args = ["npx", "electron", "."]
               if is_wsl:
                   args.extend(["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
-              console.print(f"[bold green]🚀 Launching Genelab from:[/bold green] [underline]{app_dir}[/underline]\\n")
+              console.print(f"[bold green]🚀 Launching Genelab from:[/bold green] [underline]{app_dir}[/underline]\n")
               subprocess.run(args, cwd=app_dir, env=env)
           except Exception as e:
               console.print(f"[bold red]❌ Error launching Genelab:[/bold red] {e}")
@@ -165,19 +157,12 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # Update script to explicitly target the correct python bin environment
+    # 6. Apply Python target interpreter rules directly
     inreplace launcher_script, "/usr/bin/env python3", python_exe.to_s
-
-    # 8. WRITE AN ABSOLUTE BASH ENTRYPOINT TO BIN
-    # Bash binaries are natively indexed by Homebrew instantly upon layout mapping
-    (bin/"aurora-biospace").write <<~EOS
-      #!/bin/bash
-      exec "#{python_exe}" "#{launcher_script}" "$@"
-    EOS
-
-    # 9. ENFORCE GLOBAL KERNEL EXECUTION PERMISSIONS
-    system "chmod", "+x", libexec/"aurora-launcher.py"
-    system "chmod", "+x", bin/"aurora-biospace"
+    
+    # 7. Use Homebrew's native exec script writer to prevent symlink dropouts
+    # This automatically registers the path correctly with the system shell profile
+    bin.write_exec_script launcher_script => "aurora-biospace"
   end
 
   test do
