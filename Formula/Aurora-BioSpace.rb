@@ -54,7 +54,6 @@ class AuroraBiospace < Formula
     ohai "Installing required Python packages (rich, requests)..."
     system venv/"bin/pip", "install", "--quiet", "rich", "requests"
 
-    # Shebang points to venv Python so packages are always found
     venv_python = venv/"bin/python3"
 
     launcher_content = File.read(native_launcher)
@@ -79,9 +78,14 @@ class AuroraBiospace < Formula
       system "xattr", "-rd", "com.apple.quarantine", libexec.to_s rescue nil
     end
 
-    # 8. MAP GLOBAL EXECUTABLE VIA HOMEBREW NATIVE TRACKING PATHS
-    bin.write_exec_script (libexec/"genelab-launcher.py")
-    mv bin/"genelab-launcher.py", bin/"aurora-biospace"
+    # 8. WRITE CUSTOM SHELL WRAPPER — injects node_modules/.bin into PATH
+    # so that `electron` is found when npm start runs
+    (bin/"aurora-biospace").write <<~EOS
+      #!/bin/bash
+      export PATH="#{libexec}/genelab/node_modules/.bin:$PATH"
+      exec "#{libexec}/venv/bin/python3" "#{libexec}/genelab-launcher.py" "$@"
+    EOS
+    chmod 0755, bin/"aurora-biospace"
   end
 
   test do
