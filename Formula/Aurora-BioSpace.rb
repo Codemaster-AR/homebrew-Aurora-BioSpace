@@ -1,4 +1,4 @@
-class Aurora-Biospace < Formula
+class Aurora-BioSpace < Formula
   desc "Launcher for the Aurora Bioscience Dashboard by Codemaster-AR."
   homepage "https://github.com/Codemaster-AR/aurora-biospace"
   url "https://github.com/Codemaster-AR/aurora/archive/refs/tags/v6.0.0.tar.gz"
