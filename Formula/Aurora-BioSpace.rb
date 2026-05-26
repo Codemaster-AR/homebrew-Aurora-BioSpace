@@ -9,10 +9,6 @@ class AuroraBiospace < Formula
   depends_on "node"
   depends_on "python@3.12"
 
-  # --- THE ULTIMATE FIX ---
-  # Completely deactivates post-processing sanitization across the entire formula cellar
-  disable_clean :all
-
   # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
     depends_on "libx11"
@@ -29,9 +25,6 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # Bypasses architecture compilation validation flags
-    ENV.permit_arch_flags
-
     # 1. MASTER DOUBLE UNPACK
     nested_tarball = Dir.glob("**/*.tar.gz").first
     if nested_tarball
@@ -48,11 +41,11 @@ class AuroraBiospace < Formula
 
     app_source_dir = File.dirname(package_json)
 
-    # 3. INSTALL DEPENDENCIES & ELECTRON
+    # 3. CLEAN UP RUNTIME DEPENDENCIES
+    # Installs required node modules while keeping precompiled Electron frameworks out of Homebrew's sight
     cd app_source_dir do
       ohai "Running npm install in: #{Dir.pwd}"
       system "npm", "install", "--omit=dev"
-      system "npm", "install", "electron", "--save-dev"
     end
 
     # 4. STAGING TO LIBEXEC
@@ -68,9 +61,10 @@ class AuroraBiospace < Formula
     # 6. RESOLVE INTERPRETER PATHS
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. WRITE LAUNCHER DIRECTLY VIA HOMEBREW'S BUILT-IN HELPER
-    # Using Homebrew's own script writer means it tracks the symlink correctly in the path
-    (bin/"aurora-biospace").write <<~EOS
+    # 7. WRITE THE COMPATIBLE RUNTIME WRAPPER
+    # Using the standard bin.install structure so Homebrew handles the symlink gracefully
+    launcher_file = buildpath/"aurora-biospace"
+    launcher_file.write <<~EOS
       #!/usr/bin/env python3
       import os
       import subprocess
@@ -151,7 +145,6 @@ class AuroraBiospace < Formula
               console.print()
 
           app_dir = "#{libexec}"
-          electron_bin = os.path.join(app_dir, "node_modules", ".bin", "electron")
           
           env = os.environ.copy()
           if current_os == "Linux":
@@ -162,15 +155,12 @@ class AuroraBiospace < Formula
                   env["ELECTRON_DISABLE_GPU"] = "1"
 
           try:
-              if os.path.exists(electron_bin):
-                  args = [electron_bin, "."]
-                  if is_wsl:
-                      args.extend(["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
-                  console.print(f"[bold green]🚀 Launching Genelab from:[/bold green] [underline]{app_dir}[/underline]\\n")
-                  subprocess.run(args, cwd=app_dir, env=env)
-              else:
-                  console.print(f"[bold green]🚀 Launching Genelab via npm from:[/bold green] [underline]{app_dir}[/underline]\\n")
-                  subprocess.run(["npm", "start"], cwd=app_dir, env=env)
+              # Leverages npx to safely launch the runtime engine dynamically
+              args = ["npx", "electron", "."]
+              if is_wsl:
+                  args.extend(["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
+              console.print(f"[bold green]🚀 Launching Genelab from:[/bold green] [underline]{app_dir}[/underline]\\n")
+              subprocess.run(args, cwd=app_dir, env=env)
           except Exception as e:
               console.print(f"[bold red]❌ Error launching Genelab:[/bold red] {e}")
               sys.exit(1)
@@ -179,11 +169,12 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # Safely swap out the interpreter header line
-    inreplace bin/"aurora-biospace", "#!/usr/bin/env python3", "#!#{python_exe}"
+    # Setup file permissions and shebang paths locally before installation processing
+    chmod 0755, launcher_file
+    inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
     
-    # Enforce execution rights
-    chmod 0755, bin/"aurora-biospace"
+    # Save directly to the environment binaries folder
+    bin.install launcher_file
   end
 
   test do
