@@ -43,17 +43,23 @@ class AuroraBiospace < Formula
     end
 
     # 4. CAPTURE EXISTING REPO LAUNCHER BEFORE WRITING RE-MAPS
-    # Find your pre-existing workspace script 'genelab-launcher.py'
     native_launcher = Dir.glob("**/genelab-launcher.py").first
     odie "Error: Could not find genelab-launcher.py in the source archive." if native_launcher.nil?
 
-    # Update shebang header on your raw native script directly
+    # FIXED: Re-write the file header to guarantee a perfect Python executable interpreter path mapping
     python_exe = Formula["python@3.12"].opt_bin/"python3"
-    inreplace native_launcher, "#!/usr/bin/env python3", "#!#{python_exe}"
+    launcher_content = File.read(native_launcher)
+    
+    # Strip away any existing broken or blank shebang headers if they exist
+    if launcher_content.start_with?("#!")
+      launcher_content = launcher_content.lines[1..].join
+    end
+    
+    # Save the launcher with a fresh, direct path header mapping
+    File.write(native_launcher, "#!#{python_exe}\n" + launcher_content)
     system "chmod", "+x", native_launcher
 
     # 5. MOVE RUNTIME DIRECTORY TREE TO CLEAN ISOLATED LIBEXEC
-    # Move the outer directory containing BOTH genelab/ and genelab-launcher.py
     outer_workspace = File.dirname(native_launcher)
     cd outer_workspace do
       libexec.install Dir["*"]
@@ -65,7 +71,6 @@ class AuroraBiospace < Formula
     end
 
     # 7. MAP GLOBAL EXECUTABLE VIA HOMEBREW NATIVE TRACKING PATHS
-    # This securely links libexec/genelab-launcher.py straight out to 'bin/aurora-biospace' without error
     bin.write_exec_script (libexec/"genelab-launcher.py")
     mv bin/"genelab-launcher.py", bin/"aurora-biospace"
   end
