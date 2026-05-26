@@ -60,8 +60,7 @@ class AuroraBiospace < Formula
     # 6. RESOLVE INTERPRETER PATHS
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. DEPLOY INTERNAL PYTHON LAUNCHER SCRIPT
-    # We stage the script securely inside libexec away from Homebrew's symlink-stripper
+    # 7. DEPLOY INTERNAL PYTHON SCRIPT
     internal_script = libexec/"aurora_core_launcher.py"
     internal_script.write <<~EOS
       #!#{python_exe}
@@ -167,12 +166,21 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # Enforce safe execution on the hidden core logic file
-    chmod 0755, internal_script
+    FileUtils.chmod 0755, internal_script
 
-    # 8. BOMB-PROOF COMPILER METHOD
-    # This instructs Homebrew's own stable layer to generate the executable wrapper link in /bin/
-    write_env_script internal_script, {}
+    # 8. DIRECT CELLAR DISK BOMB-PROOF WRITE
+    # Create the target bin directory inside the cellar manually
+    (prefix/"bin").mkpath
+    target_bin = prefix/"bin/aurora-biospace"
+
+    # Write a small shell stub directly into place
+    File.open(target_bin, "w") do |f|
+      f.puts "#!/bin/sh"
+      f.puts "exec #{python_exe} #{internal_script} \"$@\""
+    end
+
+    # Use foundational Ruby filesystem commands to force permissions onto the system disk
+    FileUtils.chmod 0755, target_bin
   end
 
   test do
