@@ -46,17 +46,19 @@ class AuroraBiospace < Formula
     native_launcher = Dir.glob("**/genelab-launcher.py").first
     odie "Error: Could not find genelab-launcher.py in the source archive." if native_launcher.nil?
 
-    # FIXED: Re-write the file header to guarantee a perfect Python executable interpreter path mapping
+    # FIXED: Find the absolute REAL path to Python, stripping out Homebrew symlink loops
     python_exe = Formula["python@3.12"].opt_bin/"python3"
+    real_python = python_exe.realpath
+
     launcher_content = File.read(native_launcher)
     
-    # Strip away any existing broken or blank shebang headers if they exist
+    # Strip away any existing shebang headers cleanly
     if launcher_content.start_with?("#!")
       launcher_content = launcher_content.lines[1..].join
     end
     
-    # Save the launcher with a fresh, direct path header mapping
-    File.write(native_launcher, "#!#{python_exe}\n" + launcher_content)
+    # Inject the true, physical binary path into the shebang
+    File.write(native_launcher, "#!#{real_python}\n" + launcher_content)
     system "chmod", "+x", native_launcher
 
     # 5. MOVE RUNTIME DIRECTORY TREE TO CLEAN ISOLATED LIBEXEC
