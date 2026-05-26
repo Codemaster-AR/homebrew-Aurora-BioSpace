@@ -8,6 +8,10 @@ class AuroraBiospace < Formula
   depends_on "node"
   depends_on "python@3.12"
 
+  # Prevent Homebrew from trying to relink Electron's pre-built dylibs
+  # (they don't have enough header padding for absolute path rewrites)
+  skip_clean "libexec/genelab/node_modules"
+
   # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
     depends_on "libx11"
@@ -74,8 +78,9 @@ class AuroraBiospace < Formula
     end
 
     # 7. CLEAR DESKTOP APP QUARANTINE FLAGS (macOS only)
+    # Scoped to just the genelab app — avoids hitting SIP-protected venv symlinks
     if OS.mac?
-      system "xattr", "-rd", "com.apple.quarantine", libexec.to_s rescue nil
+      system "xattr", "-rd", "com.apple.quarantine", (libexec/"genelab").to_s rescue nil
     end
 
     # 8. WRITE CUSTOM SHELL WRAPPER — injects node_modules/.bin into PATH
