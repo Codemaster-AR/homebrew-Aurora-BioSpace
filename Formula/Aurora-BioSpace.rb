@@ -25,7 +25,7 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # 1. EXPAND SECOND NESTED TARBALL
+    # 1. EXPAND SECOND NESTED PRODUCTION TARBALL
     nested_tarball = Dir.glob("**/*.tar.gz").reject { |f| f.include?("Old/") }.first
     if nested_tarball
       ohai "Extracting required production workspace archive: #{nested_tarball}"
@@ -59,10 +59,10 @@ class AuroraBiospace < Formula
     # 6. RESOLVE INTERPRETER PATHS
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. WRITE AND AUTOMATICALLY AUTHORIZE RUNTIME WRAPPER
-    # Using Homebrew's native script generator natively forces execute permissions
-    (bin/"aurora-biospace").write <<~EOS
-      #!#{python_exe}
+    # 7. WRITE MAIN RUNTIME PYTHON SCRIPT DIRECTLY TO LIBEXEC
+    launcher_script = libexec/"aurora-launcher.py"
+    launcher_script.write <<~EOS
+      #!/usr/bin/env python3
       import os
       import subprocess
       import sys
@@ -164,6 +164,20 @@ class AuroraBiospace < Formula
       if __name__ == "__main__":
           main()
     EOS
+
+    # Update script to explicitly target the correct python bin environment
+    inreplace launcher_script, "/usr/bin/env python3", python_exe.to_s
+
+    # 8. WRITE AN ABSOLUTE BASH ENTRYPOINT TO BIN
+    # Bash binaries are natively indexed by Homebrew instantly upon layout mapping
+    (bin/"aurora-biospace").write <<~EOS
+      #!/bin/bash
+      exec "#{python_exe}" "#{launcher_script}" "$@"
+    EOS
+
+    # 9. ENFORCE GLOBAL KERNEL EXECUTION PERMISSIONS
+    system "chmod", "+x", libexec/"aurora-launcher.py"
+    system "chmod", "+x", bin/"aurora-biospace"
   end
 
   test do
