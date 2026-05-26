@@ -5,11 +5,11 @@ class AuroraBiospace < Formula
   sha256 "50ec788be4f39e5fd2191ae529d80def168acbcd82257337897b7049c83fcf18"
   version "6.0.0"
 
-  # Core dependencies - Homebrew will download these if the user lacks them
+  # Core dependencies
   depends_on "node"
   depends_on "python@3.12"
 
-  # --- CRITICAL: LINUX SYSTEM LIBRARIES (The .so fix) ---
+  # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
     depends_on "libx11"
     depends_on "libxkbfile"
@@ -25,6 +25,9 @@ class AuroraBiospace < Formula
   end
 
   def install
+    # Bypasses complex dynamic linking processing constraints on binary headers
+    ENV.permit_arch_flags
+
     # 1. MASTER DOUBLE UNPACK
     nested_tarball = Dir.glob("**/*.tar.gz").first
     if nested_tarball
@@ -48,8 +51,10 @@ class AuroraBiospace < Formula
       system "npm", "install", "electron", "--save-dev"
     end
 
-    # 4. STAGING TO LIBEXEC
-    libexec.install Dir["*"]
+    # 4. STAGING TO LIBEXEC (Move contents directly to flatten long paths)
+    cd app_source_dir do
+      libexec.install Dir["*"]
+    end
 
     # 5. OS-SPECIFIC ATTRIBUTE CLEANING (macOS only)
     if OS.mac?
@@ -57,12 +62,11 @@ class AuroraBiospace < Formula
     end
 
     # 6. UNIVERSAL MASTER LAUNCHER (Python-based)
-    final_app_path = Dir.glob("#{libexec}/**/genelab").first || libexec
-
-    # Determine Homebrew's specific Python path
+    # Since we moved app contents directly into libexec root, final_app_path is simple
+    final_app_path = libexec
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # Write the script text to the physical workspace file
+    # Write launcher directly into the buildpath staging area
     launcher_file = buildpath/"aurora-biospace"
     launcher_file.write <<~EOS
       #!/usr/bin/env python3
@@ -74,13 +78,11 @@ class AuroraBiospace < Formula
       CURRENT_VERSION = "v6.0.0" 
       GITHUB_REPO = "codemaster-ar/aurora"
 
-      # Auto-install rich and requests to the execution path if missing
       try:
           from rich.console import Console
           from rich.panel import Panel
           import requests
       except ImportError:
-          # If modules are missing in homebrew's python space, install them dynamically
           subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "rich", "requests"])
           from rich.console import Console
           from rich.panel import Panel
@@ -175,12 +177,14 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # 7. CHMOD AND DEPLOY SECURELY
+    # 7. CHMOD *BEFORE* INSTALLATION (Ensures execution flags survive errors)
     chmod 0755, launcher_file
+    
+    # Inline substitute the shebang line directly on the temporary workspace file
+    inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
+    
+    # Finally, move the pre-configured, pre-permissioned file to bin
     bin.install launcher_file
-
-    # Inject Homebrew's isolated Python path directly into the binary launcher's shebang
-    inreplace bin/"aurora-biospace", "#!/usr/bin/env python3", "#!#{python_exe}"
   end
 
   test do
