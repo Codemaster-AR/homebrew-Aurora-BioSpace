@@ -42,7 +42,6 @@ class AuroraBiospace < Formula
     app_source_dir = File.dirname(package_json)
 
     # 3. CLEAN UP RUNTIME DEPENDENCIES
-    # Installs required node modules while keeping precompiled Electron frameworks out of Homebrew's sight
     cd app_source_dir do
       ohai "Running npm install in: #{Dir.pwd}"
       system "npm", "install", "--omit=dev"
@@ -62,7 +61,6 @@ class AuroraBiospace < Formula
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
     # 7. WRITE THE COMPATIBLE RUNTIME WRAPPER
-    # Using the standard bin.install structure so Homebrew handles the symlink gracefully
     launcher_file = buildpath/"aurora-biospace"
     launcher_file.write <<~EOS
       #!/usr/bin/env python3
@@ -79,7 +77,8 @@ class AuroraBiospace < Formula
           from rich.panel import Panel
           import requests
       except ImportError:
-          subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "rich", "requests"])
+          # FIXED: Added "--user" so dependencies install to user-space instead of protected system directories
+          subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--quiet", "rich", "requests"])
           from rich.console import Console
           from rich.panel import Panel
           import requests
@@ -108,11 +107,11 @@ class AuroraBiospace < Formula
 
       def display_header():
           aurora_art = r"""
-    ___                                 
+    ___                                     
    /   |  __  ___________  __________ _ 
-  / /| | / / / / ___/ __ \/ ___/ __ `/ 
+  / /| | / / / / ___/ __ \\/ ___/ __ `/ 
  / ___ |/ /_/ / /  / /_/ / /  / /_/ /  
-/_/  |_|\__,_/_/   \____/_/   \__,_/   
+/_/  |_|\\__,_/_/   \\____/_/   \\__,_/   
           """
           console.print(aurora_art, style="bold cyan")
           console.print("    ✨ [bold italic violet]AI-powered[/bold italic violet] [bold italic sea_green2]Bioscience Dashboard[/bold italic sea_green2] ✨")
@@ -155,7 +154,6 @@ class AuroraBiospace < Formula
                   env["ELECTRON_DISABLE_GPU"] = "1"
 
           try:
-              # Leverages npx to safely launch the runtime engine dynamically
               args = ["npx", "electron", "."]
               if is_wsl:
                   args.extend(["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
@@ -169,8 +167,8 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # Setup file permissions and shebang paths locally before installation processing
-    chmod 0755, launcher_file
+    # FIXED: Handled script permissions explicitly to avoid binary execution restriction
+    launcher_file.chmod(0755)
     inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
     
     # Save directly to the environment binaries folder
