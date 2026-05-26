@@ -23,23 +23,19 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # 1. Expand production archive
     nested_tarball = Dir.glob("**/*.tar.gz").reject { |f| f.include?("Old/") }.first
     if nested_tarball
       system "tar", "-xzf", nested_tarball
     end
 
-    # 2. Find package workspace branch
     package_json = Dir.glob("**/genelab/package.json").first || Dir.glob("**/package.json").first
     odie "Error: Could not find package.json anywhere in source." if package_json.nil?
     app_source_dir = File.dirname(package_json)
 
-    # 3. Clean production workspace install
     cd app_source_dir do
       system "npm", "install", "--omit=dev"
     end
 
-    # 4. Stage to libexec location
     cd app_source_dir do
       libexec.install Dir["*"]
     end
@@ -50,9 +46,8 @@ class AuroraBiospace < Formula
 
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 5. Write pure python script using standard string formatting 
-    # Single quotes on the heredoc block delimiter prevent Ruby from mangling variables
-    launcher_script = libexec/"aurora-launcher.py"
+    # FIXED: Name the script EXACTLY what you want the terminal command to be
+    launcher_script = libexec/"aurora-biospace"
     launcher_script.write <<~'EOS'
       #!/usr/bin/env python3
       import os
@@ -86,7 +81,7 @@ class AuroraBiospace < Formula
                       console.print(Panel(
                           f"[bold yellow]⚠️  A new update is available![/bold yellow]\n\n"
                           f"Current Version: [red]{CURRENT_VERSION}[/red]\n"
-                          f"Latest Version:  [green]{latest_version}[ green]\n\n"
+                          f"Latest Version:  [green]{latest_version}[/green]\n\n"
                           f"Download it here: [underline cyan]https://github.com/{GITHUB_REPO}/releases[/underline cyan]",
                           title="[bold yellow]Update Notice[/bold yellow]",
                           border_style="yellow"
@@ -99,7 +94,7 @@ class AuroraBiospace < Formula
           aurora_art = r"""
     ___                                     
    /   |  __  ___________  __________ _ 
-  / /| | / / / / ___/ __ \\/ ___/ __ `/ 
+  / /| | / / / / ___/ __ \/ ___/ __ `/ 
  / ___ |/ /_/ / /  / /_/ / /  / /_/ /  
 /_/  |_|\__,_/_/   \____/_/   \__,_/   
           """
@@ -133,7 +128,6 @@ class AuroraBiospace < Formula
               console.print(Panel(f"[yellow]{msg}[/yellow]", title="[bold blue]System Notice[/bold blue]", border_style="blue"))
               console.print()
 
-          # Let Python resolve its own execution folder path directly via parent tracking
           app_dir = os.path.dirname(os.path.abspath(__file__))
           
           env = os.environ.copy()
@@ -157,12 +151,10 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # 6. Apply Python target interpreter rules directly
     inreplace launcher_script, "/usr/bin/env python3", python_exe.to_s
     
-    # 7. Use Homebrew's native exec script writer to prevent symlink dropouts
-    # This automatically registers the path correctly with the system shell profile
-    bin.write_exec_script launcher_script => "aurora-biospace"
+    # FIXED: Just pass the path. It will automatically create 'bin/aurora-biospace'
+    bin.write_exec_script launcher_script
   end
 
   test do
