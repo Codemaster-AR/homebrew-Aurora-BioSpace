@@ -5,12 +5,13 @@ class AuroraBiospace < Formula
   sha256 "50ec788be4f39e5fd2191ae529d80def168acbcd82257337897b7049c83fcf18"
   version "6.0.0"
 
-  # Core system tools
+  # Core dependencies
   depends_on "node"
   depends_on "python@3.12"
 
-  # Tells Homebrew to step away and stop trying to sanitize Electron's internal library contents
-  skip_clean "libexec"
+  # --- THE ULTIMATE FIX ---
+  # Completely deactivates post-processing sanitization across the entire formula cellar
+  disable_clean :all
 
   # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
@@ -28,7 +29,7 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # Instruct Homebrew compiler architectures to bypass binary deep linkage checks
+    # Bypasses architecture compilation validation flags
     ENV.permit_arch_flags
 
     # 1. MASTER DOUBLE UNPACK
@@ -65,17 +66,12 @@ class AuroraBiospace < Formula
     end
 
     # 6. RESOLVE INTERPRETER PATHS
-    final_app_path = libexec
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. BULLETPROOF DESTINATION WRITE
-    # Create the target installation directory directory structure manually beforehand
-    (prefix/"bin").mkpath
-    target_binary_path = prefix/"bin/aurora-biospace"
-
-    # Stream the Python execution wrapper directly into the final binary file footprint
-    target_binary_path.write <<~EOS
-      #!#{python_exe}
+    # 7. WRITE LAUNCHER DIRECTLY VIA HOMEBREW'S BUILT-IN HELPER
+    # Using Homebrew's own script writer means it tracks the symlink correctly in the path
+    (bin/"aurora-biospace").write <<~EOS
+      #!/usr/bin/env python3
       import os
       import subprocess
       import sys
@@ -154,7 +150,7 @@ class AuroraBiospace < Formula
               console.print(Panel(f"[yellow]{msg}[/yellow]", title="[bold blue]System Notice[/bold blue]", border_style="blue"))
               console.print()
 
-          app_dir = "#{final_app_path}"
+          app_dir = "#{libexec}"
           electron_bin = os.path.join(app_dir, "node_modules", ".bin", "electron")
           
           env = os.environ.copy()
@@ -183,8 +179,11 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # Set system runtime read/write/execution parameters directly on the file
-    chmod 0755, target_binary_path
+    # Safely swap out the interpreter header line
+    inreplace bin/"aurora-biospace", "#!/usr/bin/env python3", "#!#{python_exe}"
+    
+    # Enforce execution rights
+    chmod 0755, bin/"aurora-biospace"
   end
 
   test do
