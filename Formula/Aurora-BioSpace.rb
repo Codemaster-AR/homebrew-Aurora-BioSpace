@@ -37,9 +37,9 @@ class AuroraBiospace < Formula
 
     app_source_dir = File.dirname(package_json)
 
-    # 3. CONFIGURE PRODUCTION DEPENDENCIES
+    # 3. CONFIGURE ALL DEPENDENCIES (including devDependencies for electron)
     cd app_source_dir do
-      system "npm", "install", "--omit=dev"
+      system "npm", "install"
     end
 
     # 4. CAPTURE EXISTING REPO LAUNCHER BEFORE WRITING RE-MAPS
@@ -79,7 +79,7 @@ class AuroraBiospace < Formula
     end
 
     # 8. WRITE CUSTOM SHELL WRAPPER — injects node_modules/.bin into PATH
-    # so that `electron` is found when npm start runs
+    # so that electron is found when npm start runs
     (bin/"aurora-biospace").write <<~EOS
       #!/bin/bash
       export PATH="#{libexec}/genelab/node_modules/.bin:$PATH"
