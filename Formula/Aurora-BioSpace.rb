@@ -46,8 +46,16 @@ class AuroraBiospace < Formula
     native_launcher = Dir.glob("**/genelab-launcher.py").first
     odie "Error: Could not find genelab-launcher.py in the source archive." if native_launcher.nil?
 
-    # Use Homebrew's stable opt path directly — no .realpath needed
+    # 5. SET UP VIRTUALENV AND AUTO-INSTALL PYTHON DEPENDENCIES
     python_exe = Formula["python@3.12"].opt_bin/"python3.12"
+    venv = libexec/"venv"
+    ohai "Creating Python virtual environment..."
+    system python_exe, "-m", "venv", venv
+    ohai "Installing required Python packages (rich, requests)..."
+    system venv/"bin/pip", "install", "--quiet", "rich", "requests"
+
+    # Shebang points to venv Python so packages are always found
+    venv_python = venv/"bin/python3"
 
     launcher_content = File.read(native_launcher)
 
@@ -56,22 +64,22 @@ class AuroraBiospace < Formula
       launcher_content = launcher_content.lines[1..].join
     end
 
-    # Inject the Python binary path into the shebang
-    File.write(native_launcher, "#!#{python_exe}\n" + launcher_content)
+    # Inject the venv Python path into the shebang
+    File.write(native_launcher, "#!#{venv_python}\n" + launcher_content)
     system "chmod", "+x", native_launcher
 
-    # 5. MOVE RUNTIME DIRECTORY TREE TO CLEAN ISOLATED LIBEXEC
+    # 6. MOVE RUNTIME DIRECTORY TREE TO CLEAN ISOLATED LIBEXEC
     outer_workspace = File.dirname(native_launcher)
     cd outer_workspace do
       libexec.install Dir["*"]
     end
 
-    # 6. CLEAR DESKTOP APP QUARANTINE FLAGS (macOS only)
+    # 7. CLEAR DESKTOP APP QUARANTINE FLAGS (macOS only)
     if OS.mac?
       system "xattr", "-rd", "com.apple.quarantine", libexec.to_s rescue nil
     end
 
-    # 7. MAP GLOBAL EXECUTABLE VIA HOMEBREW NATIVE TRACKING PATHS
+    # 8. MAP GLOBAL EXECUTABLE VIA HOMEBREW NATIVE TRACKING PATHS
     bin.write_exec_script (libexec/"genelab-launcher.py")
     mv bin/"genelab-launcher.py", bin/"aurora-biospace"
   end
