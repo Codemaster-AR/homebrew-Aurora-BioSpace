@@ -1,14 +1,14 @@
-servers = []
-listen = "127.0.0.1:3000"
-version = 2.2
+# servers = []
+# listen = "127.0.0.1:3000"
+# version = 2.2
 
-[openpage]
-enabled = true
+# [openpage]
+# enabled = true
 
-[auth]
-enabled = false
-password = "password"
-username = "admin"
+# [auth]
+# enabled = false
+# password = "password"
+# username = "admin"
 
-[sample]
-storage = "{}"
+# [sample]
+# storage = "{}"
