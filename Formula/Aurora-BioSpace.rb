@@ -34,7 +34,7 @@ class AuroraBiospace < Formula
     # 2. LOCATE ASSET TREE BRANCHES
     package_json = Dir.glob("**/genelab/package.json").first || Dir.glob("**/package.json").first
     odie "Error: Could not locate workspace package data configuration." if package_json.nil?
-    
+
     app_source_dir = File.dirname(package_json)
 
     # 3. CONFIGURE PRODUCTION DEPENDENCIES
@@ -46,19 +46,18 @@ class AuroraBiospace < Formula
     native_launcher = Dir.glob("**/genelab-launcher.py").first
     odie "Error: Could not find genelab-launcher.py in the source archive." if native_launcher.nil?
 
-    # FIXED: Find the absolute REAL path to Python, stripping out Homebrew symlink loops
-    python_exe = Formula["python@3.12"].opt_bin/"python3"
-    real_python = python_exe.realpath
+    # Use Homebrew's stable opt path directly — no .realpath needed
+    python_exe = Formula["python@3.12"].opt_bin/"python3.12"
 
     launcher_content = File.read(native_launcher)
-    
+
     # Strip away any existing shebang headers cleanly
     if launcher_content.start_with?("#!")
       launcher_content = launcher_content.lines[1..].join
     end
-    
-    # Inject the true, physical binary path into the shebang
-    File.write(native_launcher, "#!#{real_python}\n" + launcher_content)
+
+    # Inject the Python binary path into the shebang
+    File.write(native_launcher, "#!#{python_exe}\n" + launcher_content)
     system "chmod", "+x", native_launcher
 
     # 5. MOVE RUNTIME DIRECTORY TREE TO CLEAN ISOLATED LIBEXEC
@@ -69,7 +68,7 @@ class AuroraBiospace < Formula
 
     # 6. CLEAR DESKTOP APP QUARANTINE FLAGS (macOS only)
     if OS.mac?
-      system "xattr", "-rd", "com.apple.quarantine", "#{libexec}" rescue nil
+      system "xattr", "-rd", "com.apple.quarantine", libexec.to_s rescue nil
     end
 
     # 7. MAP GLOBAL EXECUTABLE VIA HOMEBREW NATIVE TRACKING PATHS
