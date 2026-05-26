@@ -42,7 +42,6 @@ class AuroraBiospace < Formula
     app_source_dir = File.dirname(package_json)
 
     # 3. CLEAN UP RUNTIME DEPENDENCIES
-    # Installs required node modules while keeping precompiled Electron frameworks out of Homebrew's sight
     cd app_source_dir do
       ohai "Running npm install in: #{Dir.pwd}"
       system "npm", "install", "--omit=dev"
@@ -61,11 +60,11 @@ class AuroraBiospace < Formula
     # 6. RESOLVE INTERPRETER PATHS
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. WRITE THE COMPATIBLE RUNTIME WRAPPER
-    # Using the standard bin.install structure so Homebrew handles the symlink gracefully
-    launcher_file = buildpath/"aurora-biospace"
-    launcher_file.write <<~EOS
-      #!/usr/bin/env python3
+    # 7. DEPLOY INTERNAL PYTHON LAUNCHER SCRIPT
+    # We stage the script securely inside libexec away from Homebrew's symlink-stripper
+    internal_script = libexec/"aurora_core_launcher.py"
+    internal_script.write <<~EOS
+      #!#{python_exe}
       import os
       import subprocess
       import sys
@@ -155,7 +154,6 @@ class AuroraBiospace < Formula
                   env["ELECTRON_DISABLE_GPU"] = "1"
 
           try:
-              # Leverages npx to safely launch the runtime engine dynamically
               args = ["npx", "electron", "."]
               if is_wsl:
                   args.extend(["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
@@ -169,12 +167,12 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # Setup file permissions and shebang paths locally before installation processing
-    chmod 0755, launcher_file
-    inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
-    
-    # Save directly to the environment binaries folder
-    bin.install launcher_file
+    # Enforce safe execution on the hidden core logic file
+    chmod 0755, internal_script
+
+    # 8. BOMB-PROOF COMPILER METHOD
+    # This instructs Homebrew's own stable layer to generate the executable wrapper link in /bin/
+    write_env_script internal_script, {}
   end
 
   test do
