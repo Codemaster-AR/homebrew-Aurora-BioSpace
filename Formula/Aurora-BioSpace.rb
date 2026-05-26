@@ -179,8 +179,8 @@ class AuroraBiospace < Formula
     chmod 0755, launcher_file
     bin.install launcher_file
 
-    # Explicitly rewrite the shebang for the new aurora-biospace binary
-    rewrite_shebang Language::Python.shebang_header(python_exe), bin/"aurora-biospace"
+    # Inject Homebrew's isolated Python path directly into the binary launcher's shebang
+    inreplace bin/"aurora-biospace", "#!/usr/bin/env python3", "#!#{python_exe}"
   end
 
   test do
