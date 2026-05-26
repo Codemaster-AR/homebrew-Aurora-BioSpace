@@ -59,10 +59,10 @@ class AuroraBiospace < Formula
     # 6. RESOLVE INTERPRETER PATHS
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # 7. WRITE THE COMPATIBLE RUNTIME WRAPPER
-    launcher_file = buildpath/"aurora-biospace"
-    launcher_file.write <<~EOS
-      #!/usr/bin/env python3
+    # 7. WRITE AND AUTOMATICALLY AUTHORIZE RUNTIME WRAPPER
+    # Using Homebrew's native script generator natively forces execute permissions
+    (bin/"aurora-biospace").write <<~EOS
+      #!#{python_exe}
       import os
       import subprocess
       import sys
@@ -164,13 +164,6 @@ class AuroraBiospace < Formula
       if __name__ == "__main__":
           main()
     EOS
-
-    # 8. PROCESS INTERPRETER AND STAGE TO BIN
-    inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
-    bin.install launcher_file
-
-    # FIXED: Force executable execution privileges onto the file AFTER it is saved into the bin location
-    chmod 0755, bin/"aurora-biospace"
   end
 
   test do
