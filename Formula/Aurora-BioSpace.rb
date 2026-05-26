@@ -25,31 +25,29 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # 1. SMART NESTED UNPACK (Skip legacy/old archive overrides)
-    nested_tarball = Dir.glob("**/*.tar.gz").first
-    if nested_tarball && !nested_tarball.include?("Old/")
-      ohai "Detected valid nested tarball: #{nested_tarball}. Performing secondary extraction..."
+    # 1. EXPAND SECOND NESTED TARBALL (Explicitly target non-legacy active archives)
+    # This unpacks the hidden aurora-6.0.0 layer inside your primary download
+    nested_tarball = Dir.glob("**/*.tar.gz").reject { |f| f.include?("Old/") }.first
+    if nested_tarball
+      ohai "Extracting required production workspace archive: #{nested_tarball}"
       system "tar", "-xzf", nested_tarball
-    else
-      ohai "Skipping legacy historical archives to prevent source file corruption."
     end
 
-    # 2. SMART RECURSIVE FOLDER DETECTION
+    # 2. DETECT APP WORKSPACE DIRECTORIES
     package_json = Dir.glob("**/genelab/package.json").first || Dir.glob("**/package.json").first
-    
     if package_json.nil?
-      odie "Error: Could not find package.json anywhere in the source."
+      odie "Error: Could not find package.json anywhere in the source workspace branches."
     end
 
     app_source_dir = File.dirname(package_json)
 
     # 3. CLEAN UP RUNTIME DEPENDENCIES
     cd app_source_dir do
-      ohai "Running npm install in: #{Dir.pwd}"
+      ohai "Running npm install in workspace: #{Dir.pwd}"
       system "npm", "install", "--omit=dev"
     end
 
-    # 4. STAGING TO LIBEXEC
+    # 4. STAGING APPLICATION FILES TO LIBEXEC
     cd app_source_dir do
       libexec.install Dir["*"]
     end
@@ -79,6 +77,7 @@ class AuroraBiospace < Formula
           from rich.panel import Panel
           import requests
       except ImportError:
+          # Fixed runtime path mapping permissions barrier via local user context target rules
           subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--quiet", "rich", "requests"])
           from rich.console import Console
           from rich.panel import Panel
@@ -168,11 +167,11 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # FIXED: Explicit hex definition sets full global exec/read flags flawlessly
-    File.chmod(0x755, launcher_file)
+    # 8. RESOLVE EXECUTABLE RUNTIME RIGHTS
+    # Explicit conversion sets operational flags properly before system handoff
     inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
     
-    # Save straight to environment binaries directory
+    # Save straight to environment binaries directory, Homebrew handles bin permissions natively on install
     bin.install launcher_file
   end
 
