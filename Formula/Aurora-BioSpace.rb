@@ -8,6 +8,7 @@ class AuroraBiospace < Formula
   depends_on "node"
   depends_on "python@3.12"
 
+  # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
     depends_on "libx11"
     depends_on "libxkbfile"
@@ -23,138 +24,50 @@ class AuroraBiospace < Formula
   end
 
   def install
+    # 1. UNPACK BOTH LAYERS CLEANLY
     nested_tarball = Dir.glob("**/*.tar.gz").reject { |f| f.include?("Old/") }.first
     if nested_tarball
+      ohai "Extracting primary production package branch layer..."
       system "tar", "-xzf", nested_tarball
     end
 
+    # 2. LOCATE ASSET TREE BRANCHES
     package_json = Dir.glob("**/genelab/package.json").first || Dir.glob("**/package.json").first
-    odie "Error: Could not find package.json anywhere in source." if package_json.nil?
+    odie "Error: Could not locate workspace package data configuration." if package_json.nil?
+    
     app_source_dir = File.dirname(package_json)
 
+    # 3. CONFIGURE PRODUCTION DEPENDENCIES
     cd app_source_dir do
       system "npm", "install", "--omit=dev"
     end
 
-    cd app_source_dir do
+    # 4. CAPTURE EXISTING REPO LAUNCHER BEFORE WRITING RE-MAPS
+    # Find your pre-existing workspace script 'genelab-launcher.py'
+    native_launcher = Dir.glob("**/genelab-launcher.py").first
+    odie "Error: Could not find genelab-launcher.py in the source archive." if native_launcher.nil?
+
+    # Update shebang header on your raw native script directly
+    python_exe = Formula["python@3.12"].opt_bin/"python3"
+    inreplace native_launcher, "#!/usr/bin/env python3", "#!#{python_exe}"
+    system "chmod", "+x", native_launcher
+
+    # 5. MOVE RUNTIME DIRECTORY TREE TO CLEAN ISOLATED LIBEXEC
+    # Move the outer directory containing BOTH genelab/ and genelab-launcher.py
+    outer_workspace = File.dirname(native_launcher)
+    cd outer_workspace do
       libexec.install Dir["*"]
     end
 
+    # 6. CLEAR DESKTOP APP QUARANTINE FLAGS (macOS only)
     if OS.mac?
       system "xattr", "-rd", "com.apple.quarantine", "#{libexec}" rescue nil
     end
 
-    python_exe = Formula["python@3.12"].opt_bin/"python3"
-
-    # FIXED: Name the script EXACTLY what you want the terminal command to be
-    launcher_script = libexec/"aurora-biospace"
-    launcher_script.write <<~'EOS'
-      #!/usr/bin/env python3
-      import os
-      import subprocess
-      import sys
-      import platform
-
-      CURRENT_VERSION = "v6.0.0" 
-      GITHUB_REPO = "codemaster-ar/aurora"
-
-      try:
-          from rich.console import Console
-          from rich.panel import Panel
-          import requests
-      except ImportError:
-          subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--quiet", "rich", "requests"])
-          from rich.console import Console
-          from rich.panel import Panel
-          import requests
-
-      console = Console()
-
-      def check_for_updates():
-          url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-          try:
-              response = requests.get(url, timeout=1.5)
-              if response.status_code == 200:
-                  latest_release = response.json()
-                  latest_version = latest_release.get("tag_name", "").strip()
-                  if latest_version and latest_version != CURRENT_VERSION:
-                      console.print(Panel(
-                          f"[bold yellow]⚠️  A new update is available![/bold yellow]\n\n"
-                          f"Current Version: [red]{CURRENT_VERSION}[/red]\n"
-                          f"Latest Version:  [green]{latest_version}[/green]\n\n"
-                          f"Download it here: [underline cyan]https://github.com/{GITHUB_REPO}/releases[/underline cyan]",
-                          title="[bold yellow]Update Notice[/bold yellow]",
-                          border_style="yellow"
-                      ))
-                      console.print()
-          except:
-              pass
-
-      def display_header():
-          aurora_art = r"""
-    ___                                     
-   /   |  __  ___________  __________ _ 
-  / /| | / / / / ___/ __ \/ ___/ __ `/ 
- / ___ |/ /_/ / /  / /_/ / /  / /_/ /  
-/_/  |_|\__,_/_/   \____/_/   \__,_/   
-          """
-          console.print(aurora_art, style="bold cyan")
-          console.print("    ✨ [bold italic violet]AI-powered[/bold italic violet] [bold italic sea_green2]Bioscience Dashboard[/bold italic sea_green2] ✨")
-          console.print("       [grey50]powered by NASA OSDR API - Only Google Auth accepted[/grey50]\n")
-          console.print(f"       [bold dim white]Local Version: {CURRENT_VERSION}[/bold dim white]\n")
-          console.print("[bold magenta]=[/bold magenta]" * 50)
-          console.print()
-
-      def main():
-          display_header()
-          check_for_updates()
-
-          msg = "Created by Codemaster-AR: There could be an error. If there is, just press OK. Additionally, if you face any issues, please contact codemaster.ar@Gmail.com"
-          current_os = platform.system()
-          is_wsl = False
-          
-          try:
-              if os.path.exists('/proc/version'):
-                  with open('/proc/version', 'r') as f:
-                      if 'microsoft' in f.read().lower():
-                          is_wsl = True
-          except:
-              pass
-
-          if current_os == "Darwin":
-              cmd = f'osascript -e "display dialog \"{msg}\" buttons {{\"OK\"}} default button 1"'
-              os.system(cmd)
-          else:
-              console.print(Panel(f"[yellow]{msg}[/yellow]", title="[bold blue]System Notice[/bold blue]", border_style="blue"))
-              console.print()
-
-          app_dir = os.path.dirname(os.path.abspath(__file__))
-          
-          env = os.environ.copy()
-          if current_os == "Linux":
-              env["LD_LIBRARY_PATH"] = os.path.dirname(app_dir) + "/lib:" + env.get("LD_LIBRARY_PATH", "")
-              if is_wsl:
-                  env["LIBGL_ALWAYS_SOFTWARE"] = "1"
-                  env["ELECTRON_DISABLE_GPU"] = "1"
-
-          try:
-              args = ["npx", "electron", "."]
-              if is_wsl:
-                  args.extend(["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
-              console.print(f"[bold green]🚀 Launching Genelab from:[/bold green] [underline]{app_dir}[/underline]\n")
-              subprocess.run(args, cwd=app_dir, env=env)
-          except Exception as e:
-              console.print(f"[bold red]❌ Error launching Genelab:[/bold red] {e}")
-              sys.exit(1)
-
-      if __name__ == "__main__":
-          main()
-    EOS
-
-    inreplace launcher_script, "/usr/bin/env python3", python_exe.to_s
-    
-    # FIXED: Just pass the path. It will automatically create 'bin/aurora-biospace'
-    bin.write_exec_script launcher_script
+    # 7. MAP GLOBAL EXECUTABLE VIA HOMEBREW NATIVE TRACKING PATHS
+    # This securely links libexec/genelab-launcher.py straight out to 'bin/aurora-biospace' without error
+    bin.write_exec_script (libexec/"genelab-launcher.py")
+    mv bin/"genelab-launcher.py", bin/"aurora-biospace"
   end
 
   test do
