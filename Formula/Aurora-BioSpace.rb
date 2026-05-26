@@ -5,9 +5,12 @@ class AuroraBiospace < Formula
   sha256 "50ec788be4f39e5fd2191ae529d80def168acbcd82257337897b7049c83fcf18"
   version "6.0.0"
 
-  # Core dependencies
+  # Core system tools
   depends_on "node"
   depends_on "python@3.12"
+
+  # Tells Homebrew to step away and stop trying to sanitize Electron's internal library contents
+  skip_clean "libexec"
 
   # --- CRITICAL: LINUX SYSTEM LIBRARIES ---
   on_linux do
@@ -25,7 +28,7 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # Bypasses complex dynamic linking processing constraints on binary headers
+    # Instruct Homebrew compiler architectures to bypass binary deep linkage checks
     ENV.permit_arch_flags
 
     # 1. MASTER DOUBLE UNPACK
@@ -51,7 +54,7 @@ class AuroraBiospace < Formula
       system "npm", "install", "electron", "--save-dev"
     end
 
-    # 4. STAGING TO LIBEXEC (Move contents directly to flatten long paths)
+    # 4. STAGING TO LIBEXEC
     cd app_source_dir do
       libexec.install Dir["*"]
     end
@@ -61,15 +64,18 @@ class AuroraBiospace < Formula
       system "xattr", "-rd", "com.apple.quarantine", "#{libexec}" rescue nil
     end
 
-    # 6. UNIVERSAL MASTER LAUNCHER (Python-based)
-    # Since we moved app contents directly into libexec root, final_app_path is simple
+    # 6. RESOLVE INTERPRETER PATHS
     final_app_path = libexec
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # Write launcher directly into the buildpath staging area
-    launcher_file = buildpath/"aurora-biospace"
-    launcher_file.write <<~EOS
-      #!/usr/bin/env python3
+    # 7. BULLETPROOF DESTINATION WRITE
+    # Create the target installation directory directory structure manually beforehand
+    (prefix/"bin").mkpath
+    target_binary_path = prefix/"bin/aurora-biospace"
+
+    # Stream the Python execution wrapper directly into the final binary file footprint
+    target_binary_path.write <<~EOS
+      #!#{python_exe}
       import os
       import subprocess
       import sys
@@ -177,14 +183,8 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # 7. CHMOD *BEFORE* INSTALLATION (Ensures execution flags survive errors)
-    chmod 0755, launcher_file
-    
-    # Inline substitute the shebang line directly on the temporary workspace file
-    inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
-    
-    # Finally, move the pre-configured, pre-permissioned file to bin
-    bin.install launcher_file
+    # Set system runtime read/write/execution parameters directly on the file
+    chmod 0755, target_binary_path
   end
 
   test do
