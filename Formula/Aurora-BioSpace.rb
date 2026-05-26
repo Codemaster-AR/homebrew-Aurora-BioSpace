@@ -25,11 +25,13 @@ class AuroraBiospace < Formula
   end
 
   def install
-    # 1. MASTER DOUBLE UNPACK
+    # 1. SMART NESTED UNPACK (Skip legacy/old archive overrides)
     nested_tarball = Dir.glob("**/*.tar.gz").first
-    if nested_tarball
-      ohai "Detected nested tarball: #{nested_tarball}. Performing secondary extraction..."
+    if nested_tarball && !nested_tarball.include?("Old/")
+      ohai "Detected valid nested tarball: #{nested_tarball}. Performing secondary extraction..."
       system "tar", "-xzf", nested_tarball
+    else
+      ohai "Skipping legacy historical archives to prevent source file corruption."
     end
 
     # 2. SMART RECURSIVE FOLDER DETECTION
@@ -77,7 +79,6 @@ class AuroraBiospace < Formula
           from rich.panel import Panel
           import requests
       except ImportError:
-          # FIXED: Added "--user" so dependencies install to user-space instead of protected system directories
           subprocess.run([sys.executable, "-m", "pip", "install", "--user", "--quiet", "rich", "requests"])
           from rich.console import Console
           from rich.panel import Panel
@@ -167,11 +168,11 @@ class AuroraBiospace < Formula
           main()
     EOS
 
-    # FIXED: Handled script permissions explicitly to avoid binary execution restriction
-    launcher_file.chmod(0755)
+    # FIXED: Explicit hex definition sets full global exec/read flags flawlessly
+    File.chmod(0x755, launcher_file)
     inreplace launcher_file, "#!/usr/bin/env python3", "#!#{python_exe}"
     
-    # Save directly to the environment binaries folder
+    # Save straight to environment binaries directory
     bin.install launcher_file
   end
 
