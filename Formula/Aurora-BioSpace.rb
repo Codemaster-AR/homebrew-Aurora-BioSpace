@@ -1,4 +1,4 @@
-class Aurora-BioSpace < Formula
+class AuroraBiospace < Formula
   desc "Launcher for the Aurora Bioscience Dashboard by Codemaster-AR."
   homepage "https://github.com/Codemaster-AR/aurora-biospace"
   url "https://github.com/Codemaster-AR/aurora/archive/refs/tags/v6.0.0.tar.gz"
@@ -62,7 +62,7 @@ class Aurora-BioSpace < Formula
     # Determine Homebrew's specific Python path
     python_exe = Formula["python@3.12"].opt_bin/"python3"
 
-    # Write the script text to the new physical workspace file: aurora-biospace
+    # Write the script text to the physical workspace file
     launcher_file = buildpath/"aurora-biospace"
     launcher_file.write <<~EOS
       #!/usr/bin/env python3
