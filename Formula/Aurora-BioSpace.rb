@@ -2,7 +2,7 @@ class AuroraBiospace < Formula
   desc "Launcher for the Aurora Bioscience Dashboard by Codemaster-AR."
   homepage "https://github.com/Codemaster-AR/aurora-biospace"
   url "https://github.com/Codemaster-AR/aurora/archive/refs/tags/v7.0.0.tar.gz"
-  sha256 "757b8552efccf7fe3cb78e73c746c3b78167e4ce6208747e60fbcbdacd11947f"
+  sha256 "43098ru30sfu9j"
   version "7.0.0"
 
   depends_on "node"
