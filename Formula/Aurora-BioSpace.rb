@@ -3,7 +3,7 @@ class AuroraBiospace < Formula
   homepage "https://github.com/Codemaster-AR/aurora-biospace"
   url "https://github.com/Codemaster-AR/Aurora-BioSpace/archive/refs/tags/v8.0.0.tar.gz"
   sha256 "78e857400fc1b673d5c2f3b06fed775bb77f55d36f4518533fa2d5b7bcfbda4d"
-  version "7.0.0"
+  version "8.0.0"
 
   depends_on "node"
   depends_on "python@3.12"
