@@ -20,3 +20,6 @@ Untap the old repository and tap into the new one:
 ```bash
 brew untap codemaster-ar/aurora
 brew tap quantal-labs/aurora-biospace
+
+### Ignore
+github.com/codemaster-ar/aurora-biospace/
